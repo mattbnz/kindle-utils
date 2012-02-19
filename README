@@ -1,0 +1,8 @@
+Kindle Utils
+============
+
+Various utilities for doing things with a Kindle.
+
+* log-parser.py: Parse a kindle logfile, or a directory of log files and report
+  on the use of the kindle. Power states, and book statistics are reported.
+
