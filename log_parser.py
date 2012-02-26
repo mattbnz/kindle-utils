@@ -133,7 +133,9 @@ class KindleBook(object):
         else:
             try:
                 return int(float(position))
-            except ValueError:
+            except ValueError, e:
+                logger.debug('Could not parse position \'%s\' in book %s: %s',
+                              position, self.asin, e)
                 return 0
 
     def PickUp(self, ts, position):
@@ -327,7 +329,7 @@ class KindleLog(object):
                     self._state.power_state = (self._ts, 'NO_DATA')
             else:
                 if self._ts < self._start:
-                    self._warn('ts is less than file start %s. Ignoring line!',
+                    self._debug('ts is less than file start %s. Ignoring line!',
                                 time.ctime(self._start))
             consumed = 0
             consumed += self._TrackPowerState(line)
@@ -393,12 +395,12 @@ class KindleLog(object):
 
         # Check for other time changing.
         if jump < 0 and abs(jump) > self.MAX_BACKWARDS_JUMP:
-            self._warn('Large jump backwards from %s (%d)',
-                       time.ctime(last_ts), jump)
+            self._debug('Large jump backwards from %s (%d)',
+                        time.ctime(last_ts), jump)
             self._HandleJump(last_ts)
         elif jump > self.MAX_FORWARDS_JUMP:
-            self._warn('Large jump forwards from %s (%d)',
-                       time.ctime(last_ts), jump)
+            self._debug('Large jump forwards from %s (%d)',
+                        time.ctime(last_ts), jump)
             self._HandleJump(last_ts)
         else:
             # No major changes. Just handle any existing offsets.
@@ -440,12 +442,12 @@ class KindleLog(object):
         # previous jump offsets.
         ts = self._ts
         self._CalculateTime(last_ts)
-        self._warn('Second jump (%s -> %s). '
-                   'Reset jump offsets (%s, %s) -> (%s, %s)',
-                   time.ctime(last_ts), time.ctime(ts),
-                   time.ctime(self._state.base_realtime),
-                   time.ctime(self._state.base_badtime),
-                   time.ctime(self._ts), time.ctime(ts))
+        self._debug('Second jump (%s -> %s). '
+                    'Reset jump offsets (%s, %s) -> (%s, %s)',
+                    time.ctime(last_ts), time.ctime(ts),
+                    time.ctime(self._state.base_realtime),
+                    time.ctime(self._state.base_badtime),
+                    time.ctime(self._ts), time.ctime(ts))
         self._state.base_realtime = self._ts
         self._state.base_badtime = ts
         return
@@ -505,7 +507,7 @@ class KindleLog(object):
         try:
             new_tz = pytz.timezone(tzname)
         except pytz.UnknownTimezoneError:
-            self._warn('Timezone change to unknown zone %s detected', tzname)
+            self._debug('Timezone change to unknown zone %s detected', tzname)
             new_tz = KindleTz(int(offset))
 
         current_offset = self._state.timezone.localize(
@@ -514,7 +516,7 @@ class KindleLog(object):
         delta = current_offset - new_offset
         self._state.next_tz_jump = delta.total_seconds()
         self._state.next_tz = new_tz
-        self._info('New timezone %s/%s, watching for jump of %d seconds',
+        self._debug('New timezone %s/%s, watching for jump of %d seconds',
                    tzname, offset, self._state.next_tz_jump)
         return 1
 
@@ -548,8 +550,8 @@ class KindleLog(object):
         state_from, state_to = m.groups()
         last_ts, current_state = self._state.power_state
         if last_ts is None or current_state is None:
-            self._warn('Found state transition (%s -> %s) before first '
-                       'timestamp. Ignoring!', state_from, state_to)
+            self._debug('Found state transition (%s -> %s) before first '
+                        'timestamp. Ignoring!', state_from, state_to)
             return 0
         if state_from != current_state:
             if last_ts == self._start:
@@ -559,9 +561,9 @@ class KindleLog(object):
                 self._state.power_state = (last_ts, state_from)
             else:
                 # Elsewhere in the file, something went wrong...
-                self._warn('Unexpected state change from %s, expecting %s! '
-                           'Durations will be inaccurate.',
-                           state_from, current_state)
+                self._debug('Unexpected state change from %s, expecting %s! '
+                            'Durations will be inaccurate.',
+                            state_from, current_state)
                 # Fake a transition to the state the kindle tells us half way
                 # through the duration from the state we were expecting to be in.
                 duration = self._ts - last_ts

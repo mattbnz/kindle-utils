@@ -121,9 +121,9 @@ def PrintBooks(books, book_dir, only_book=None, verbose=False):
                     if end and ts > end:
                         eventpos += idx
                         break
-                    print '   %s on page %s @ %s' % (
+                    print '   %s on page %s/%s @ %s' % (
                             log_parser.KindleBook.EventToString(event_type),
-                            sidecar.GetPageLabelForPosition(data),
+                            sidecar.GetPageLabelForPosition(data), data,
                             time.ctime(ts))
         print ''
 
