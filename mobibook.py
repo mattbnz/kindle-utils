@@ -163,10 +163,12 @@ class MobiBook(object):
     def returnEXTHValue(self, exth_type):
         content = self.meta_array.get(exth_type, '')
         size = len(content)
-        if size == 4:
+        if size == 0:
+            return ''
+        elif size == 4:
             value, = struct.unpack('>I', content)
             return str(value)
-        if size == 9:
+        elif size == 9:
             value, = struct.unpack('B',content)
             return str(value)
         elif size == 10:
@@ -176,9 +178,10 @@ class MobiBook(object):
             value, = struct.unpack('>L',content)
             return str(value)
         else:
-            logger.debug('EXTH value %s has unknown length %s: %s', 
-                          exth_type, size, content)
-            raise AttributeError
+            msg = 'EXTH value %s has unknown length %s: %s' % (
+                    exth_type, size, content)
+            logger.debug(msg)
+            raise AttributeError(msg)
 
 
 def main():
@@ -186,17 +189,28 @@ def main():
         logging.fatal('You must specify a book to parse!')
         sys.exit(1)
 
+    logging.basicConfig()
+    if sys.argv[1] == '-d':
+        logger.setLevel(logging.DEBUG)
+        sys.argv.remove('-d')
+
     fp = open(sys.argv[1], 'r')
     book = MobiBook(fp)
     
     print '%s: %s' % ('File'.rjust(15), sys.argv[1])
     print '%s: %s' % ('Title'.rjust(15), book.title)
     for name in EXTH_RMAP_STRINGS:
-        v = getattr(book, name)
+        try:
+            v = getattr(book, name)
+        except AttributeError, e:
+            v = 'ERROR: %s' % e
         if v:
             print '%s: %s' % (name.rjust(15), v)
     for name in EXTH_RMAP_VALUES:
-        v = getattr(book, name)
+        try:
+            v = getattr(book, name)
+        except AttributeError, e:
+            v = 'ERROR: %s' % e
         if v:
             print '%s: %s' % (name.rjust(15), v)
 
