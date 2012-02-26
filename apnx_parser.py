@@ -10,7 +10,7 @@ import logging
 import struct
 import sys
 
-logger = logging.getLogger().getChild('apnx-parser')
+logger = logging.getLogger().getChild('apnx_parser')
 
 
 class ApnxException(Exception):

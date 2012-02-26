@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # This file is released under the GPLv2 license.
-#     Copyright (C) 2011 Matt Brown <matt@mattb.net.nz>
+#     Copyright (C) 2012 Matt Brown <matt@mattb.net.nz>
 
 from datetime import datetime, timedelta, tzinfo
 import code
@@ -16,7 +16,7 @@ import time
 
 TS_REGEXP = re.compile(r'^(\d{6}:\d{6})')
 
-logger = logging.getLogger().getChild('log-parser')
+logger = logging.getLogger().getChild('log_parser')
 
 def EqualWithFuzz(a, b, fuzz=300):
     """True if a and b are within fuzz seconds of each other."""
@@ -727,60 +727,6 @@ class KindleLogs(object):
         return books
 
 
-def FormatHMS(hms_str):
-    hour, mins, secs = map(int, hms_str.split(':', 2))
-    if secs > 30:
-        mins += 1
-    rv = []
-    if hour > 0:
-        rv.append('%d hour' % hour)
-        if hour > 1:
-            rv.append('s')
-        rv.append(', ')
-    rv.append('%d min' % mins)
-    if mins > 1:
-        rv.append('s')
-    return ''.join(rv)
-
-
-def PrintHMS(seconds):
-    d = timedelta(seconds=seconds)
-    ds = str(d)
-    if ', ' not in ds:
-        return FormatHMS(ds)
-    else:
-        days, hms = ds.split(', ')
-        return '%s, %s' % (days, FormatHMS(hms))
-
-
-def PrintBooks(books):
-    now = time.time()
-    rv = []
-    for book in books.values():
-        reads = book.reads
-        if not reads:
-            rv.append((0, book.asin, reads))
-        else:
-            newest = max([t[1] is None and now or t[1] for t in reads])
-            rv.append((newest, book.asin, reads))
-
-    total_duration = 0
-    for newest, asin, reads in sorted(rv, reverse=True):
-        print '%s: Read % 2d times. Last Finished: %s' % (
-                asin, len(reads),
-                newest == now and 'In Progress!' or time.ctime(newest))
-        for start, end, duration in reads:
-            print ' - %s => %s. Reading time %s' % (
-                    time.ctime(start),
-                    end is None and 'In Progress!' or time.ctime(end),
-                    PrintHMS(duration))
-            total_duration += duration
-        print ''
-
-    print 'Read %d books in total. %s of reading time' % (
-            len(rv), PrintHMS(total_duration))
-
-
 def LoadHistory(filename):
     if not filename or not os.path.exists(filename):
         return None
@@ -854,8 +800,6 @@ def main():
     else:
         logger.fatal('Invalid path: %s' % args[1])
         sys.exit(1)
-
-    PrintBooks(books)
 
     if options.console:
         t = globals()
