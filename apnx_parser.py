@@ -223,13 +223,27 @@ class PageLabelIndex(object):
         return True
 
     @property
-    def largest_page_label(self):
+    def last_page_with_label(self):
         last = self._FindLastPageOfType(PageLabelType.ARABIC)
         if not last:
             last = self._FindLastPageOfType(PageLabelType.ROMAN)
+        return last
+
+    @property
+    def largest_page_label(self):
+        last = self.last_page_with_label
         if last:
             return self.GetLabelForPage(last)
         return ''
+
+    @property
+    def first_page_with_label(self):
+        for scheme in self._schemes:
+            if (scheme.label_type != PageLabelType.ARABIC and
+                    scheme.label_type != PageLabelType.ROMAN):
+                continue
+            return scheme.first_ordinal_page
+        return 0
 
     @property
     def schemes(self):
@@ -312,7 +326,7 @@ class ApnxFile(BinaryFile):
         self._metadataRead = True;
 
     def _ReadEditionFormatVersion(self, edition_idx):
-        self._ReadHeader();
+        self._ReadHeader()
         self._CheckEditionIndex(edition_idx)
         if self._edition_read[edition_idx]:
             return;
@@ -320,6 +334,7 @@ class ApnxFile(BinaryFile):
         self._edition_pagination_format[edition_idx] = self.ReadUShort()
 
     def _ReadEdition(self, edition_idx):
+        self._ReadHeader()
         if self._edition_read[edition_idx]:
             return;
         self._ReadEditionFormatVersion(edition_idx)
@@ -396,6 +411,28 @@ class ApnxFile(BinaryFile):
     def GetPagePositions(self, edition_idx):
         self._ReadEditionPositions(edition_idx)
         return self._edition_positions[edition_idx]
+
+    def GetPageLabelForPosition(self, position, edition_idx=0):
+        try:
+            json_obj = json.loads(self.GetEditionJSON(edition_idx))
+        except ValueError:
+            json_obj = {}
+        pp = [(t[1], t[0])
+                for t in self.GetPagePositions(edition_idx).iteritems()]
+        pp.sort()
+        page_label_idx = PageLabelIndex(
+                json_obj.get('pageMap', ''),
+                self.GetEditionPageCount(edition_idx))
+        i = bisect_right([t[0] for t in pp], position)
+        page = 0
+        if i:
+            page = pp[i-1][1]
+        if page < page_label_idx.first_page_with_label:
+            page = page_label_idx.first_page_with_label - 1
+        elif page > page_label_idx.last_page_with_label:
+            page = page_label_idx.last_page_with_label -1
+        label = page_label_idx.GetLabelForPage(page)
+        return label
 
     @property
     def header_version(self):
