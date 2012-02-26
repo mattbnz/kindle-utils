@@ -14,7 +14,9 @@ import re
 import sys
 import time
 
+import apnx_parser
 import log_parser
+import mobibook
 
 logger = logging.getLogger().getChild('kindle-stats')
 
@@ -44,33 +46,90 @@ def PrintHMS(seconds):
         days, hms = ds.split(', ')
         return '%s, %s' % (days, FormatHMS(hms))
 
+def GetBookMetadata(asin, book_dir):
+    mobi = None
+    sidecar = None
+    for logfile in sorted(os.listdir(book_dir)):
+        if mobi and sidecar:
+            break
+        if asin not in logfile:
+            continue
+        filename = os.path.join(book_dir, logfile)
+        if logfile.endswith(('.azw', '.mobi')):
+            try:
+                mobi = mobibook.MobiBook(open(filename, 'r'))
+            except mobibook.MobiException, e:
+                logger.warn('Could not read MobiBook %s for %s: %s', logfile,
+                            asin, e)
+                mobi = None
+        elif logfile.endswith('.apnx'):
+            try:
+                sidecar = apnx_parser.ApnxFile(filename)
+            except apnx_parser.ApnxException, e:
+                logger.warn('Could not read page number sidecar %s for %s: %s',
+                            logfile, asin, e)
+                sidecar = None
+    return mobi, sidecar
 
-def PrintBooks(books):
+
+def PrintBooks(books, book_dir, only_book=None, verbose=False):
     now = time.time()
     rv = []
+    events = None
     for book in books.values():
+        if only_book:
+            if book.asin != only_book:
+                continue
+            events = book.events
         reads = book.reads
         if not reads:
-            rv.append((0, book.asin, reads))
+            rv.append((0, book.asin, book))
         else:
-            newest = max([t[1] is None and now or t[1] for t in reads])
-            rv.append((newest, book.asin, reads))
+            newest = max([t[2] is None and now or t[2] for t in reads])
+            rv.append((newest, book.asin, book))
 
     total_duration = 0
-    for newest, asin, reads in sorted(rv, reverse=True):
+    eventpos = 0
+    for newest, asin, book in sorted(rv, reverse=True):
+        metadata, sidecar = GetBookMetadata(asin, book_dir)
+        if metadata:
+            title = '%s: %s' % (asin, metadata.title)
+        else:
+            title = asin
+        reads = book.reads
         print '%s: Read % 2d times. Last Finished: %s' % (
-                asin, len(reads),
+                title, len(reads),
                 newest == now and 'In Progress!' or time.ctime(newest))
-        for start, end, duration in reads:
-            print ' - %s => %s. Reading time %s' % (
+        if only_book and verbose:
+            print ' Length: %d' % book.length
+        for start, startpos, end, endpos, duration in reads:
+            if sidecar:
+                start_txt = 'p%s' % sidecar.GetPageLabelForPosition(startpos)
+                end_txt = 'p%s' % sidecar.GetPageLabelForPosition(endpos)
+            else:
+                start_txt = '@%s' % startpos
+                end_txt = '@%s' % endpos
+            print ' - %s => %s. Reading time %s (%s => %s)' % (
                     time.ctime(start),
                     end is None and 'In Progress!' or time.ctime(end),
-                    PrintHMS(duration))
+                    PrintHMS(duration), start_txt, end_txt)
             total_duration += duration
+            if only_book and verbose:
+                # Print all events.
+                for idx, event in enumerate(events[eventpos:]):
+                    ts, event_type, data = event
+                    if end and ts > end:
+                        eventpos += idx
+                        break
+                    print '   %s on page %s @ %s' % (
+                            log_parser.KindleBook.EventToString(event_type),
+                            sidecar.GetPageLabelForPosition(data),
+                            time.ctime(ts))
         print ''
 
-    print 'Read %d books in total. %s of reading time' % (
-            len(rv), PrintHMS(total_duration))
+    if not only_book:
+        print 'Read %d books in total. %s of reading time' % (
+                len(rv), PrintHMS(total_duration))
 
 
 def ParseOptions(args):
@@ -79,6 +138,14 @@ def ParseOptions(args):
                       dest='state_file',
                       default=os.path.expanduser('~/.kindle-utils.state'),
                       help='Path to file to load/store state from')
+    parser.add_option('-b', '--book_dir', action='store',
+                      dest='book_dir',
+                      default=os.path.expanduser('~/kindle-books'),
+                      help='Path to Kindle userstore documents directory')
+    parser.add_option('-B', '--book', action='store',
+                      dest='book',
+                      default=None,
+                      help='ASIN of specific book to view')
     parser.add_option('-v', '--verbose', action='store_true', dest='verbose',
                       help='enable verbose logging')
 
@@ -102,7 +169,7 @@ def main():
     log_parser.StoreHistory(logs, options.state_file)
     books = logs.books
 
-    PrintBooks(books)
+    PrintBooks(books, options.book_dir, options.book, options.verbose)
 
 
 if __name__ == '__main__':
