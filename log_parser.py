@@ -98,14 +98,22 @@ class KindleBook(object):
     OPEN = 3       # Opened to read.
     CLOSE = 4      # Closed for now.
 
+    # Minimum amount of time a book must be picked up for to be considered that
+    # it was actually read, as opposed to picked up and discarded again.
+    MIN_IN_HAND_SECS = 2 * 60
+
     def __init__(self, asin, length):
         self.asin = asin
-        self.length = length
+        if length:
+            self.length = self._FixPosition(length)
+        else:
+            self.length = 0
         self.events = []
 
     def _CoalesceLast(self, ts, new_event, match_old=None, old_fuzz=1):
         """Coalesce consecutive events into one."""
         last = self.events and self.events[-1] or None
+        position = None
         if last:
             if EqualWithFuzz(last[0], ts, 1):
                 self.events[-1][0] = min(last[0], ts)
@@ -115,7 +123,8 @@ class KindleBook(object):
                 self.events[-1][0] = min(last[0], ts)
                 self.events[-1][1] = new_event
                 return
-        self.events.append([ts, new_event, None])
+            position = last[2]
+        self.events.append([ts, new_event, position])
 
     def _FixPosition(self, position):
         if ' ' in position:
@@ -155,34 +164,81 @@ class KindleBook(object):
                          time.ctime(events[0][0]))
         self.events.extend(events)
 
+    @classmethod
+    def EventToString(cls, event_type):
+        if event_type == cls.PICK_UP:
+            return 'PICKED UP'
+        elif event_type == cls.PUT_DOWN:
+            return 'PUT DOWN'
+        elif event_type == cls.OPEN:
+            return 'OPENED'
+        elif event_type == cls.CLOSE:
+            return 'CLOSED'
+        else:
+            return 'UNKNOWN'
+
     @property
     def reads(self):
+        """Return a list of reading events.
+
+        Each entry in the list is a tuple of the form:
+        (pick_up_ts, pick_up_loc, put_down_ts, put_down_loc, cum_reading_time)
+        """
         rv = []
         first = None
         start = None
+        firstpos = None
+        latestpos = None
         read_time = 0
         last = None
+
+        def _AppendRead(read):
+            if read[4] < self.MIN_IN_HAND_SECS:
+                # Not picked up long enough to be considered a read.
+                return
+            if not rv:
+                rv.append(read)
+                return
+            last = rv[-1]
+            if last[3] == read[1] and read[3] >= read[1]:
+                # Continuation of previous read, and in a forwards direction.
+                readtime = last[4] + read[4]
+                startpos = min(last[1], read[1])
+                rv[-1] = (last[0], startpos, read[2], read[3], readtime)
+                return
+            # Jump, or page mismatch.
+            rv.append(read)
+
         for ts, etype, data in sorted(self.events):
             if etype == self.PICK_UP:
                 start = first = ts
+                firstpos = data
+                latestpos = None
                 read_time = 0
             elif etype == self.OPEN:
                 if not first:
                     first = start
+                if not firstpos and data:
+                    firstpos = data
+                    latestpos = data
                 start = ts
             elif etype == self.CLOSE:
                 if last in (self.PICK_UP, self.OPEN):
                     read_time += ts - start
+                if data:
+                    latestpos = data
             elif etype == self.PUT_DOWN:
                 if last in (self.PICK_UP, self.OPEN):
                     read_time += ts - start
-                rv.append((first, ts, read_time))
+                if data:
+                    latestpos = data
+                _AppendRead((first, firstpos, ts, latestpos, read_time))
                 first = None
                 start = None
                 read_time = 0
             last = etype
         if first:
-            rv.append((first, None, read_time))
+            _AppendRead((first, firstpos, None, latestpos, read_time))
         return rv
 
 
