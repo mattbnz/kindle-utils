@@ -18,7 +18,7 @@ import apnx_parser
 import log_parser
 import mobibook
 
-logger = logging.getLogger().getChild('kindle-stats')
+logger = logging.getLogger().getChild('book_stats')
 
 
 def FormatHMS(hms_str):
@@ -46,28 +46,29 @@ def PrintHMS(seconds):
         days, hms = ds.split(', ')
         return '%s, %s' % (days, FormatHMS(hms))
 
+
 def GetBookMetadata(asin, book_dir):
     mobi = None
     sidecar = None
-    for logfile in sorted(os.listdir(book_dir)):
+    for bookfile in sorted(os.listdir(book_dir)):
         if mobi and sidecar:
             break
-        if asin not in logfile:
+        if asin not in bookfile:
             continue
-        filename = os.path.join(book_dir, logfile)
-        if logfile.endswith(('.azw', '.mobi')):
+        filename = os.path.join(book_dir, bookfile)
+        if bookfile.endswith(('.azw', '.mobi')):
             try:
                 mobi = mobibook.MobiBook(open(filename, 'r'))
             except mobibook.MobiException, e:
-                logger.warn('Could not read MobiBook %s for %s: %s', logfile,
+                logger.warn('Could not read MobiBook %s for %s: %s', bookfile,
                             asin, e)
                 mobi = None
-        elif logfile.endswith('.apnx'):
+        elif bookfile.endswith('.apnx'):
             try:
                 sidecar = apnx_parser.ApnxFile(filename)
             except apnx_parser.ApnxException, e:
                 logger.warn('Could not read page number sidecar %s for %s: %s',
-                            logfile, asin, e)
+                            bookfile, asin, e)
                 sidecar = None
     return mobi, sidecar
 
@@ -150,6 +151,7 @@ def ParseOptions(args):
                       help='enable verbose logging')
 
     return parser.parse_args(args)
+
 
 def main():
     # everything in UTC please!
