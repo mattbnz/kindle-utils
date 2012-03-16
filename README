@@ -6,10 +6,44 @@ Various utilities for doing things with a Kindle.
 * log_parser.py: Parse a kindle logfile, or a directory of log files and track
   the use of the kindle. Power states and book statistics are tracked.
 
-* kindle_stats.py: Print a report on Kindle usage, based on the statistics
+* book_stats.py: Print a report on book reading time, based on the statistics
   collected by log_parser.py.
 
 * mobibook.py: Parse and return the Mobi and EXTH metadata in a mobibook file.
 
 * apnx_parser.py: Parse and return the page number/position information in a
   Kindle Page Number Sidecar (.apnx) binary file.
+
+* fetch-logs: Shell script to assist in pulling log files off the Kindle.
+
+How to Use
+----------
+You need a jailbroken Kindle with SSH access (either via usbnet, or wifi). Once
+you've got one of those, use the fetch-logs script to pull logs from your
+Kindle into a local directory, and then run kindle-stats.py pointing it at the
+directory containing the logs. Voila. Make sure you run fetch-logs regularly
+enough that you don't lose any logfiles (once a week seems sufficient) and
+you've got all you need to calculate fairly accurate stats about your reading
+habits.
+
+For additional points, you can pass some extra options to the python scripts,
+see --help for details.  The most interesting option is -b for book_stats.py,
+which you should point to a directory containing the actual book files from
+your Kindle. By default this points to /media/Kindle/documents, which is where
+a Kindle seems to appear on a recent Ubuntu system. When this option is
+present, kindle_stats.py will extract the titles and page number information
+from the book and sidecar files to use in its output, I find this much more
+useful than looking at a list of ASINs and Kindle positions.
+
+e.g.
+$ mkdir kindle-logs
+$ cd kindle-logs
+$ fetch-logs .
+$ kindle_stats.py -b /media/Kindle/documents .
+
+B000FC1PJI: Quicksilver: Read  1 times. Last Finished: Fri Mar 16 18:30:57 2012
+ - Tue Feb 21 11:06:24 2012 => Fri Mar 16 18:30:57 2012. Reading time 19 hours, 29 mins (p9 => p914)
+
+...
+
+Read 51 books in total. 9 days, 2 hours, 29 mins of reading time
