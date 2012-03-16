@@ -1,0 +1,9 @@
+#!/bin/bash
+# This file is released under the GPLv2 license.
+#     Copyright (C) 2012 Matt Brown <matt@mattb.net.nz>
+
+# Put the IP or hostname of your Kindle here.
+KINDLE="kindle"
+
+scp root@$KINDLE:/var/local/log/messages*gz .
+gunzip -f *gz
