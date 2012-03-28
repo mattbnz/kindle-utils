@@ -434,6 +434,9 @@ class ApnxFile(BinaryFile):
         label = page_label_idx.GetLabelForPage(page)
         return label
 
+    def HasPageNumbers(self):
+        return self.num_editions > 0
+
     @property
     def header_version(self):
         self._ReadHeader()

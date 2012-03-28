@@ -70,6 +70,11 @@ def GetBookMetadata(asin, book_dir):
                 logger.warn('Could not read page number sidecar %s for %s: %s',
                             bookfile, asin, e)
                 sidecar = None
+            if not sidecar.HasPageNumbers():
+                logger.info('Sidecar %s for %s has no page number data!',
+                        bookfile, asin)
+                sidecar = None
+
     return mobi, sidecar
 
 
@@ -122,10 +127,13 @@ def PrintBooks(books, book_dir, only_book=None, verbose=False):
                     if end and ts > end:
                         eventpos += idx
                         break
+                    if sidecar:
+                        page = sidecar.GetPageLabelForPosition(data)
+                    else:
+                        page = '?'
                     print '   %s on page %s/%s @ %s' % (
                             log_parser.KindleBook.EventToString(event_type),
-                            sidecar.GetPageLabelForPosition(data), data,
-                            time.ctime(ts))
+                            page, data, time.ctime(ts))
         print ''
 
     if not only_book:
