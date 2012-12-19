@@ -26,20 +26,22 @@ enough that you don't lose any logfiles (once a week seems sufficient) and
 you've got all you need to calculate fairly accurate stats about your reading
 habits.
 
-For additional points, you can pass some extra options to the python scripts,
-see --help for details.  The most interesting option is -b for book_stats.py,
-which you should point to a directory containing the actual book files from
-your Kindle. By default this points to /media/Kindle/documents, which is where
-a Kindle seems to appear on a recent Ubuntu system. When this option is
-present, kindle_stats.py will extract the titles and page number information
-from the book and sidecar files to use in its output, I find this much more
-useful than looking at a list of ASINs and Kindle positions.
+The script will also attempt to read titles and page information from the
+actual book files if it can find them, this makes the output much more useful
+that just looking at a list of ASINs and Kindle positions. By default, the
+script will expect to find the books at /media/Kindle/documents, which is where
+a Kindle seems to appear when connected via USB on a recent Ubuntu system.
+Alternatively, you could manually copy the books to a local directory on your
+computer and point the script at that directory with -b. This can be done over
+the wifi, so you don't need to mess around with USB, and also gives you a
+backup of your books on your own computer, incase Amazon ever decides to delete
+them off your Kindle!
 
-e.g.
+e.g (assuming USB connection).
 $ mkdir kindle-logs
 $ cd kindle-logs
 $ fetch-logs .
-$ kindle_stats.py -b /media/Kindle/documents .
+$ book_stats.py .
 
 B000FC1PJI: Quicksilver: Read  1 times. Last Finished: Fri Mar 16 18:30:57 2012
  - Tue Feb 21 11:06:24 2012 => Fri Mar 16 18:30:57 2012. Reading time 19 hours, 29 mins (p9 => p914)
@@ -47,3 +49,6 @@ B000FC1PJI: Quicksilver: Read  1 times. Last Finished: Fri Mar 16 18:30:57 2012
 ...
 
 Read 51 books in total. 9 days, 2 hours, 29 mins of reading time
+
+Alternatively (if you've copied the books locally):
+$ book_stats.py -b /path/to/books .
