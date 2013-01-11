@@ -149,7 +149,7 @@ def ParseOptions(args):
                       help='Path to file to load/store state from')
     parser.add_option('-b', '--book_dir', action='store',
                       dest='book_dir',
-                      default='/media/Kindle/documents'),
+                      default='/media/Kindle/documents',
                       help='Path to Kindle userstore documents directory')
     parser.add_option('-B', '--book', action='store',
                       dest='book',
