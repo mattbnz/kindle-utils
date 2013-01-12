@@ -14,6 +14,9 @@ import re
 import sys
 import time
 
+if sys.hexversion < 0x02070000:
+    sys.exit("Python 2.7 or newer is required to run this program.")
+
 import apnx_parser
 import log_parser
 import mobibook

@@ -14,6 +14,9 @@ import re
 import sys
 import time
 
+if sys.hexversion < 0x02070000:
+    sys.exit("Python 2.7 or newer is required to run this program.")
+
 TS_REGEXP = re.compile(r'^(\d{6}:\d{6})')
 
 logger = logging.getLogger().getChild('log_parser')

@@ -7,6 +7,9 @@ import logging
 import struct
 import sys
 
+if sys.hexversion < 0x02070000:
+    sys.exit("Python 2.7 or newer is required to run this program.")
+
 CRYPTO_NONE = 0
 CRYPTO_MOBIPOCKET = 1
 CRYPTO_AMAZON = 2

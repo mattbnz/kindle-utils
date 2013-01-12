@@ -10,6 +10,9 @@ import logging
 import struct
 import sys
 
+if sys.hexversion < 0x02070000:
+    sys.exit("Python 2.7 or newer is required to run this program.")
+
 logger = logging.getLogger().getChild('apnx_parser')
 
 
