@@ -509,9 +509,9 @@ class KindleLog(object):
         offset, tzname = m.groups()
         try:
             new_tz = pytz.timezone(tzname)
-        except pytz.UnknownTimezoneError:
+        except pytz.UnknownTimeZoneError:
             self._debug('Timezone change to unknown zone %s detected', tzname)
-            new_tz = KindleTz(int(offset))
+            new_tz = pytz.FixedOffset(int(offset)/60)  # Convert to minutes.
 
         current_offset = self._state.timezone.localize(
                 datetime.fromtimestamp(self._ts))
