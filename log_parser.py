@@ -205,13 +205,22 @@ class KindleBook(object):
                 rv.append(read)
                 return
             last = rv[-1]
-            if last[3] == read[1] and read[3] >= read[1]:
-                # Continuation of previous read, and in a forwards direction.
+            # Check if this read was moving forwards
+            continuing = False
+            if last[3] == read[1]:
+                # Starting where last read left off, must be a continuation.
+                continuing = True
+            elif (read[0] - last[2]) < self.MIN_IN_HAND_SECS:
+                # Gap between reads is so short nothing else could have been
+                # read in the interim... 
+                continuing = True
+            # But only continuing if we're still going fowards in the book...
+            if continuing and read[3] >= read[1]:
                 readtime = last[4] + read[4]
                 startpos = min(last[1], read[1])
                 rv[-1] = (last[0], startpos, read[2], read[3], readtime)
                 return
-            # Jump, or page mismatch.
+            # Not continuing, maybe a jump, or page mismatch.
             rv.append(read)
 
         for ts, etype, data in sorted(self.events):
