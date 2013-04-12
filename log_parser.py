@@ -101,9 +101,14 @@ class KindleBook(object):
     OPEN = 3       # Opened to read.
     CLOSE = 4      # Closed for now.
 
-    # Minimum amount of time a book must be picked up for to be considered that
-    # it was actually read, as opposed to picked up and discarded again.
+    # Minimum amount of time a book must be picked up for it to be considered
+    # that it was actually read, as opposed to picked up and discarded again.
     MIN_IN_HAND_SECS = 2 * 60
+    
+    # Minimum amount of time a book must be picked up for it to be consider
+    # that it was actually read, if the reading appeared to progress backwards
+    # through the book.
+    MIN_IN_HAND_REVERSE_SECS = 10 * 60
 
     def __init__(self, asin, length):
         self.asin = asin
@@ -198,14 +203,19 @@ class KindleBook(object):
         last = None
 
         def _AppendRead(read):
+            forwards = read[3] >= read[1]
             if read[4] < self.MIN_IN_HAND_SECS:
                 # Not picked up long enough to be considered a read.
+                return
+            if not forwards and read[4] < self.MIN_IN_HAND_REVERSE_SECS:
+                # Not picked up long enough to be considered a read, while
+                # reading backwards...
                 return
             if not rv:
                 rv.append(read)
                 return
             last = rv[-1]
-            # Check if this read was moving forwards
+            # Check if this read was a continuation of a previous read.
             continuing = False
             if last[3] == read[1]:
                 # Starting where last read left off, must be a continuation.
@@ -215,7 +225,7 @@ class KindleBook(object):
                 # read in the interim... 
                 continuing = True
             # But only continuing if we're still going fowards in the book...
-            if continuing and read[3] >= read[1]:
+            if continuing and forwards:
                 readtime = last[4] + read[4]
                 startpos = min(last[1], read[1])
                 rv[-1] = (last[0], startpos, read[2], read[3], readtime)
@@ -794,6 +804,10 @@ class KindleLogs(object):
                     books[book.asin].UpdateEvents(book.events)
                 else:
                     books[book.asin] = book
+        # Remove any books with zero reads.
+        for asin in books.keys():
+            if len(books[asin].reads) <= 0:
+                del books[asin]
         return books
 
 
