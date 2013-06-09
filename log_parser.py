@@ -813,6 +813,11 @@ class KindleLogs(object):
         self.state = None
 
     def ProcessDirectory(self, directory):
+        """Processes a directory of ordered Kindle logfiles.
+        
+        This method is aware of Kindle log file naming conventions and acts
+        accordingly (skipping duplicates, ignoring partial logfiles).
+        """
         logger.info('Processing logs from %s', directory)
         last_seq = ('', '')
         for logfile in sorted(os.listdir(directory)):
@@ -834,11 +839,38 @@ class KindleLogs(object):
                 self.files.append(log)
                 self.state = log.state  # Triggers parsing.
                 last_seq = (seq, datestr)
+                logger.info('Parsed %s. %s -> %s.', log, FormatTime(log.start),
+                            FormatTime(log.end))
+                logger.debug('State: %s', self.state)
             except ValueError, e:
                 logger.error('Could not parse %s! %s', logfile, e)
                 continue
         self.files.sort()
         logger.info('Found %d logs. %s => %s', len(self.files),
+                    FormatTime(self.files[0].start),
+                    FormatTime(self.files[-1].end))
+
+    def ProcessFiles(self, files):
+        """Processes an ordered list of logfiles.
+        
+        This method simply parses the logfiles in the order given, with no
+        attempt to interpret filenames and apply any special logic.
+        """
+        logger.info('Processing specified logfiles: %s', ', '.join(files))
+        last_seq = ('', '')
+        for logfile in files:
+            try:
+                log = KindleLog(logfile, self.state)
+                self.files.append(log)
+                self.state = log.state  # Triggers parsing.
+                logger.info('Parsed %s. %s -> %s.', log, FormatTime(log.start),
+                            FormatTime(log.end))
+                logger.debug('State: %s', self.state)
+            except ValueError, e:
+                logger.error('Could not parse %s! %s', logfile, e)
+                continue
+        self.files.sort()
+        logger.info('Processed %d logs. %s => %s', len(self.files),
                     FormatTime(self.files[0].start),
                     FormatTime(self.files[-1].end))
 
@@ -930,10 +962,17 @@ def main():
     logging.basicConfig()
     options, args = ParseOptions(sys.argv)
     if len(args) < 2:
-        logging.fatal('You must specify a directory to read from!')
+        logging.fatal('You must specify a dir/file or files to read from!')
         sys.exit(1)
     SetVerbosity(options.verbose)
-    if os.path.isdir(args[1]):
+    if len(args) > 2:
+        # Multiple files, process as given.
+        logs = KindleLogs()
+        logs.ProcessFiles(args[1:])
+        logs.PrintStates()
+        books = logs.books
+    elif os.path.isdir(args[1]):
+        # Directory, process as if it contains ordered Kindle log files.
         logs = LoadHistory(options.state_file)
         if not logs:
             logs = KindleLogs()
@@ -942,6 +981,7 @@ def main():
         StoreHistory(logs, options.state_file)
         books = logs.books
     elif os.path.isfile(args[1]):
+        # Single file, process as given.
         log = KindleLog(args[1])
         logger.info('Parsed %s. %s -> %s.', log, FormatTime(log.start),
                     FormatTime(log.end))
