@@ -174,7 +174,7 @@ def main():
     if len(args) < 2:
         logging.fatal('You must specify a directory to read from!')
         sys.exit(1)
-
+    log_parser.SetVerbosity(options.verbose)
     logs = log_parser.LoadHistory(options.state_file)
     if not logs:
         logs = log_parser.KindleLogs()

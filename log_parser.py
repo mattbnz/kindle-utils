@@ -35,6 +35,9 @@ def EqualByHour(a, b):
     if EqualWithFuzz(a, b + 3600): return True
     return False
 
+def FormatTime(ts):
+    return time.strftime('%Y-%m-%d-%H:%M:%S', time.localtime(ts))
+
 
 class KindleLogState(object):
 
@@ -170,8 +173,8 @@ class KindleBook(object):
             return
         if self.events and events[0][0] < self.events[-1][0]:
             logger.fatal('%s: Going backwards in time from %s => %s!',
-                         self.asin, time.ctime(self.events[-1][0]),
-                         time.ctime(events[0][0]))
+                         self.asin, FormatTime(self.events[-1][0]),
+                         FormatTime(events[0][0]))
         self.events.extend(events)
 
     @classmethod
@@ -352,7 +355,7 @@ class KindleLog(object):
             else:
                 if self._ts < self._start:
                     self._debug('ts is less than file start %s. Ignoring line!',
-                                time.ctime(self._start))
+                                FormatTime(self._start))
             consumed = 0
             consumed += self._TrackPowerState(line)
             if consumed == 0:
@@ -369,7 +372,7 @@ class KindleLog(object):
         self._end = self._state.last_ts
         self._StateTransition(self._end)
         self._debug('Finished Processing! File covered %s -> %s',
-                    time.ctime(self._start), time.ctime(self._end))
+                    FormatTime(self._start), FormatTime(self._end))
         self.parsed = True
         self._state.last_filename = os.path.basename(self.filename)
 
@@ -395,14 +398,14 @@ class KindleLog(object):
             if jump > 0 and jump > self.MAX_FILE_JUMP:
                 # Giant jump between files. Assume missing data.
                 self._warn('Missing data from %s till now. Resetting state.',
-                           time.ctime(last_ts))
+                           FormatTime(last_ts))
                 self._StateTransition(last_ts, 'NO_DATA')
                 self._StateTransition(self._ts, 'NO_DATA')
                 return
             if jump < 0:
                 self._fatal('Time went backwards. Last file ended @ %s. '
                             'Bailing out! Please fix manually.',
-                            time.ctime(last_ts))
+                            FormatTime(last_ts))
 
         # Check for timezone change jumps.
         if (self._state.next_tz_jump and
@@ -414,17 +417,17 @@ class KindleLog(object):
             old = self._ts
             self._ts = self._ts - jump
             self._ts_correction = jump
-            self._debug('Line had old timezone (was %s).', time.ctime(old))
+            self._debug('Line had old timezone (was %s).', FormatTime(old))
             return
 
         # Check for other time changing.
         if jump < 0 and abs(jump) > self.MAX_BACKWARDS_JUMP:
             self._debug('Large jump backwards from %s (%d)',
-                        time.ctime(last_ts), jump)
+                        FormatTime(last_ts), jump)
             self._HandleJump(last_ts)
         elif jump > self.MAX_FORWARDS_JUMP:
             self._debug('Large jump forwards from %s (%d)',
-                        time.ctime(last_ts), jump)
+                        FormatTime(last_ts), jump)
             self._HandleJump(last_ts)
         else:
             # No major changes. Just handle any existing offsets.
@@ -445,8 +448,8 @@ class KindleLog(object):
             self._state.base_badtime = self._ts
             self._CalculateTime()
             self._debug('New jump offsets. real=%s, bad=%s',
-                        time.ctime(self._state.base_realtime),
-                        time.ctime(self._state.base_badtime))
+                        FormatTime(self._state.base_realtime),
+                        FormatTime(self._state.base_badtime))
             return
 
         # Already tracking a jump! Did we jump back to reality?
@@ -454,7 +457,7 @@ class KindleLog(object):
         if jump >= 0 and jump <= self.MAX_FORWARDS_JUMP:
             # Back in reality.
             self._info('Jump from %s brings us back to reality',
-                       time.ctime(last_ts))
+                       FormatTime(last_ts))
             self._state.base_realtime = None
             self._state.base_badtime = None
             self._CalculateTime()
@@ -468,10 +471,10 @@ class KindleLog(object):
         self._CalculateTime(last_ts)
         self._debug('Second jump (%s -> %s). '
                     'Reset jump offsets (%s, %s) -> (%s, %s)',
-                    time.ctime(last_ts), time.ctime(ts),
-                    time.ctime(self._state.base_realtime),
-                    time.ctime(self._state.base_badtime),
-                    time.ctime(self._ts), time.ctime(ts))
+                    FormatTime(last_ts), FormatTime(ts),
+                    FormatTime(self._state.base_realtime),
+                    FormatTime(self._state.base_badtime),
+                    FormatTime(self._ts), FormatTime(ts))
         self._state.base_realtime = self._ts
         self._state.base_badtime = ts
         return
@@ -492,9 +495,9 @@ class KindleLog(object):
         diff = ts - self._state.base_badtime
         calculated_time = self._state.base_realtime + diff
         #self._debug('_CalculateTime: ts=%s, calc=%s, diff=%d, bad=%s, real=%s',
-        #            time.ctime(ts), time.ctime(calculated_time), diff,
-        #            time.ctime(self._state.base_badtime),
-        #            time.ctime(self._state.base_realtime))
+        #            FormatTime(ts), FormatTime(calculated_time), diff,
+        #            FormatTime(self._state.base_badtime),
+        #            FormatTime(self._state.base_realtime))
         # Check this isn't jumping us *way* into the future itself.
         new_diff = calculated_time - self._state.base_realtime
         if new_diff > self.MAX_FORWARDS_JUMP:
@@ -512,7 +515,7 @@ class KindleLog(object):
         old = self._ts
         self._state.timezone = self._state.next_tz
         self._ts += (-1*self._state.next_tz_jump)
-        self._info('New timezone activated. (time was %s)', time.ctime(old))
+        self._info('New timezone activated. (time was %s)', FormatTime(old))
         self._state.old_tz_jump = -1*self._state.next_tz_jump
         self._state.next_tz = None
         self._state.next_tz_jump = None
@@ -608,7 +611,7 @@ class KindleLog(object):
         self.state_durations[current_state] += (ts - last_ts)
         ts_str = ''
         if ts != self._ts:
-            ts_str = ' @ %s' % time.ctime(ts)
+            ts_str = ' @ %s' % FormatTime(ts)
         self._debug('Power State: %s -> %s%s', current_state, new_state, ts_str)
         self._state.power_state = (ts, new_state)
     
@@ -726,25 +729,23 @@ class KindleLog(object):
             return ''
         return ' %s correction' % self._ts_correction
 
+    @property
+    def _log_prefix(self):
+        return '%d@%s (%s%s):' % (self._lineno, self.logname,
+                                  FormatTime(self._ts),
+                                  self._ts_correction_str)
+
     def _debug(self, message, *args):
-        logger.debug('%s:% 5d %s%s: %s' %
-                (self.logname, self._lineno, time.ctime(self._ts),
-                    self._ts_correction_str, message), *args)
+        logger.debug('%s %s' % (self._log_prefix, message), *args)
 
     def _info(self, message, *args):
-        logger.info('%s:% 5d %s%s: %s' %
-                (self.logname, self._lineno, time.ctime(self._ts),
-                    self._ts_correction_str, message), *args)
+        logger.info('%s %s' % (self._log_prefix, message), *args)
 
     def _warn(self, message, *args):
-        logger.warn('%s:% 5d %s%s: %s' %
-                (self.logname, self._lineno, time.ctime(self._ts),
-                    self._ts_correction_str, message), *args)
+        logger.warn('%s %s' % (self._log_prefix, message), *args)
 
     def _fatal(self, message, *args):
-        logger.fatal('%s:% 5d %s%s: %s' %
-                (self.logname, self._lineno, time.ctime(self._ts),
-                    self._ts_correction_str, message), *args)
+        logger.fatal('%s %s' % (self._log_prefix, message), *args)
         sys.exit(1)
 
 
@@ -781,8 +782,8 @@ class KindleLogs(object):
                 continue
         self.files.sort()
         logger.info('Found %d logs. %s => %s', len(self.files),
-                    time.ctime(self.files[0].start),
-                    time.ctime(self.files[-1].end))
+                    FormatTime(self.files[0].start),
+                    FormatTime(self.files[-1].end))
 
     def GetStates(self):
         states = {}
@@ -858,6 +859,12 @@ def ParseOptions(args):
 
     return parser.parse_args(args)
 
+def SetVerbosity(verbose):
+    if verbose:
+        logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.INFO)
+
 def main():
     # everything in UTC please!
     os.environ['TZ'] = 'UTC'
@@ -868,10 +875,7 @@ def main():
     if len(args) < 2:
         logging.fatal('You must specify a directory to read from!')
         sys.exit(1)
-    if options.verbose:
-        logger.setLevel(logging.DEBUG)
-    else:
-        logger.setLevel(logging.INFO)
+    SetVerbosity(options.verbose)
     if os.path.isdir(args[1]):
         logs = LoadHistory(options.state_file)
         if not logs:
@@ -882,8 +886,8 @@ def main():
         books = logs.books
     elif os.path.isfile(args[1]):
         log = KindleLog(args[1])
-        logger.info('Parsed %s. %s -> %s.', log, time.ctime(log.start),
-                    time.ctime(log.end))
+        logger.info('Parsed %s. %s -> %s.', log, FormatTime(log.start),
+                    FormatTime(log.end))
         books = log.books
     else:
         logger.fatal('Invalid path: %s' % args[1])
