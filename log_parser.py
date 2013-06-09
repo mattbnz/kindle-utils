@@ -95,6 +95,43 @@ class KindleLogState(object):
         # Current book.
         self.book = None
 
+    @property
+    def _tz(self):
+        tz_brackets = ''
+        tz_was_str = None
+        tz_next_str = None
+        if self.old_tz_jump:
+            tz_was_str = 'last tz jump of %s from %s' % (
+                    self.old_tz_jump, self.old_tz)
+        if self.next_tz_jump:
+            tz_next_str = 'expecting tz jump of %s to %s' % (
+                    self.next_tz_jump, self.next_tz)
+        if tz_was_str or tz_next_str:
+            tz_brackets = ' (%s)' % (
+                    ', '.join(filter(None, [tz_was_str, tz_next_str])))
+        return 'tz %s%s' % (self.timezone, tz_brackets)
+
+    @property
+    def _jump(self):
+        if self.base_realtime:
+            return 'jump bad=%s, real=%s' % (
+                    FormatTime(self.base_badtime),
+                    FormatTime(self.base_realtime))
+        return None
+
+    @property
+    def _state(self):
+        if self.power_state[0] == self.last_ts:
+            state_ts = ''
+        else:
+            state_ts = '@%s' % FormatTime(self.power_state[0])
+        return '%s%s in %s' % (self.power_state[1], state_ts, self.book)
+
+    def __repr__(self):
+        return '%s@%s: %s' % (
+                self.last_filename, FormatTime(self.last_ts),
+                '; '.join(filter(None, [self._state, self._tz, self._jump])))
+
     @classmethod
     def DefaultState(cls):
         d = cls()
