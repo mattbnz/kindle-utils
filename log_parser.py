@@ -24,16 +24,22 @@ logger = logging.getLogger().getChild('log_parser')
 def EqualWithFuzz(a, b, fuzz=300):
     """True if a and b are within fuzz seconds of each other."""
     if a == b: return True
-    if a-fuzz <= b and a+fuzz >= b: return True
-    if b-fuzz <= a and b+fuzz >= a: return True
+    if abs(a-b) < fuzz: return True
     return False
 
-def EqualByHour(a, b):
-    """True if a and b are equal +/- 1h with fuzz."""
-    if EqualWithFuzz(a, b): return True
-    if EqualWithFuzz(a, b - 3600): return True
-    if EqualWithFuzz(a, b + 3600): return True
-    return False
+def MatchWithFuzzByHour(ref, value):
+    """Returns unfuzzy matched value if value is equal to ref +/- 1h.
+    
+    E.g.
+    (3600, 3600) -> 3600
+    (3600, 3601) -> 3600
+    (3600, 3901) -> None
+    (3600, 7200) -> 7200
+    """
+    if EqualWithFuzz(ref, value): return ref
+    if ref > 3600 and EqualWithFuzz(ref - 3600, value): return ref - 3600
+    if EqualWithFuzz(ref + 3600, value): return ref + 3600
+    return None
 
 def FormatTime(ts):
     return time.strftime('%Y-%m-%d-%H:%M:%S', time.localtime(ts))
@@ -53,6 +59,7 @@ class KindleLogState(object):
         self.last_ts = copy_from.last_ts
         self.next_tz_jump = copy_from.next_tz_jump
         self.next_tz = copy_from.next_tz
+        self.old_tz = copy_from.old_tz
         self.old_tz_jump = copy_from.old_tz_jump
         self.timezone = copy_from.timezone
         self.power_state = copy_from.power_state
@@ -74,6 +81,7 @@ class KindleLogState(object):
         self.next_tz = None
         # After we swap timezones, we track the size of the jump so we can pick
         # up lines still logged in the old timezone.
+        self.old_tz = None
         self.old_tz_jump = None
         # The current timezone.
         self.timezone = self.DEFAULT_TZ
@@ -410,16 +418,24 @@ class KindleLog(object):
 
         # Check for timezone change jumps.
         if (self._state.next_tz_jump and
-                EqualByHour(jump, self._state.next_tz_jump)):
-            return self._SwitchTimezone()
-        if (self._state.old_tz_jump and
-                EqualByHour(jump, self._state.old_tz_jump)):
-            # Something still logging in the old timezone :(
-            old = self._ts
-            self._ts = self._ts - jump
-            self._ts_correction = jump
-            self._debug('Line had old timezone (was %s).', FormatTime(old))
+                MatchWithFuzzByHour(self._state.next_tz_jump,
+                                    jump) is not None):
+            self._CalculateTime()
+            self._SwitchTimezone()
             return
+        if self._state.old_tz_jump:
+            offset = MatchWithFuzzByHour(self._state.old_tz_jump, jump)
+            if offset is not None:
+                # Something still logging in the old timezone :(
+                old = self._ts
+                self._CalculateTime()
+                self._ts = self._ts - offset
+                self._ts_correction -= offset
+                self._debug('Line had old timezone +/-1 hr '
+                            '(would have been %s as %s (%s)).',
+                            FormatTime(old), self._state.old_tz,
+                            self._state.old_tz_jump)
+                return
 
         # Check for other time changing.
         if jump < 0 and abs(jump) > self.MAX_BACKWARDS_JUMP:
@@ -495,10 +511,6 @@ class KindleLog(object):
 
         diff = ts - self._state.base_badtime
         calculated_time = self._state.base_realtime + diff
-        #self._debug('_CalculateTime: ts=%s, calc=%s, diff=%d, bad=%s, real=%s',
-        #            FormatTime(ts), FormatTime(calculated_time), diff,
-        #            FormatTime(self._state.base_badtime),
-        #            FormatTime(self._state.base_realtime))
         # Check this isn't jumping us *way* into the future itself.
         new_diff = calculated_time - self._state.base_realtime
         if new_diff > self.MAX_FORWARDS_JUMP:
@@ -506,6 +518,10 @@ class KindleLog(object):
                         self.MAX_FORWARDS_JUMP)
         self._ts_correction = (calculated_time - ts)
         self._ts = calculated_time
+        self._debug('_CalculateTime: ts=%s, calc=%s, diff=%d, bad=%s, real=%s',
+                    FormatTime(ts), FormatTime(calculated_time), diff,
+                    FormatTime(self._state.base_badtime),
+                    FormatTime(self._state.base_realtime))
 
     def _SwitchTimezone(self):
         """A jump in time which we expected for a TZ change has occured.
@@ -514,12 +530,14 @@ class KindleLog(object):
         look out for lines still in the old timezone.
         """
         old = self._ts
+        self._state.old_tz = self._state.timezone
+        self._state.old_tz_jump = -1*self._state.next_tz_jump
         self._state.timezone = self._state.next_tz
         self._ts += (-1*self._state.next_tz_jump)
-        self._info('New timezone activated. (time was %s)', FormatTime(old))
-        self._state.old_tz_jump = -1*self._state.next_tz_jump
         self._state.next_tz = None
         self._state.next_tz_jump = None
+        self._info('New timezone %s activated. (time would be %s as %s)',
+                self._state.timezone, FormatTime(old), self._state.old_tz)
 
     def _TrackTimezone(self, line):
         """Watch for lines indicating that a timezone change is occurring.
@@ -546,8 +564,9 @@ class KindleLog(object):
         delta = current_offset - new_offset
         self._state.next_tz_jump = delta.total_seconds()
         self._state.next_tz = new_tz
-        self._debug('New timezone %s/%s, watching for jump of %d seconds',
-                   tzname, offset, self._state.next_tz_jump)
+        self._debug('New timezone %s/%s, waiting for %d seconds jump from %s',
+                   tzname, offset, self._state.next_tz_jump,
+                   self._state.timezone)
         return 1
 
     def _TrackReboot(self, line):
