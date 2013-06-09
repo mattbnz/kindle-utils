@@ -384,8 +384,10 @@ class KindleLog(object):
         last_ts = self._state.last_ts
         if self._state.base_badtime is not None:
             diff = last_ts - self._state.base_realtime
-            assert diff >= 0, ('last_ts (%s) - base_realtime (%s) < 0' %
-                    (self._state.last_ts, self._state.base_realtime))
+            if diff < 0:
+                self._fatal('last_ts (%s) - base_realtime (%s) < 0',
+                            self._state.last_ts,
+                            self._state.base_realtime)
             last_ts = self._state.base_badtime + diff
         jump = self._ts - last_ts
 
@@ -495,7 +497,9 @@ class KindleLog(object):
         #            time.ctime(self._state.base_realtime))
         # Check this isn't jumping us *way* into the future itself.
         new_diff = calculated_time - self._state.base_realtime
-        assert new_diff <= self.MAX_FORWARDS_JUMP
+        if new_diff > self.MAX_FORWARDS_JUMP:
+            self._fatal('jump is too large (%d > %d)', new_diff,
+                        self.MAX_FORWARDS_JUMP)
         self._ts_correction = (calculated_time - ts)
         self._ts = calculated_time
 
