@@ -356,6 +356,7 @@ class KindleLog(object):
                 if self._ts < self._start:
                     self._debug('ts is less than file start %s. Ignoring line!',
                                 FormatTime(self._start))
+                    continue
             consumed = 0
             consumed += self._TrackPowerState(line)
             if consumed == 0:
