@@ -18,6 +18,7 @@ COMPRESSION_NONE = 0
 COMPRESSION_PALMDOC = 1
 COMPRESSION_HUFFDIC = 17480
 
+# Map EXTH record types to names.
 EXTH_MAP_STRINGS = { 
         100 : 'Creator',
         101 : 'Publisher',
@@ -33,16 +34,24 @@ EXTH_MAP_STRINGS = {
         111 : 'Type',
         112 : 'Source',
         113 : 'ASIN',
+        116 : 'StartOffset',
         118 : 'Price',
         119 : 'Currency',
+        201 : "CoverOffset",
+        406 : 'IsLibraryRental',
         503 : 'UpdatedTitle',
 }
 EXTH_RMAP_STRINGS = dict([(v.lower(), k) for k, v in EXTH_MAP_STRINGS.items()])
-EXTH_MAP_VALUES = { 
-        116 : 'StartOffset',
-        201 : "CoverOffset",
+
+# Map EXTH record types to extraction transformations suitable for passing to
+# struct.unpack. Types not present in this map will be returned without
+# transformation (e.g. as a string).
+EXTH_MAP_CONVERSIONS = {
+        116 : '>I',
+        201 : '>I',
+        406 : '>Q',
 }
-EXTH_RMAP_VALUES = dict([(v.lower(), k) for k, v in EXTH_MAP_VALUES.items()])
+
 
 logger = logging.getLogger().getChild('mobibook')
 
@@ -144,12 +153,15 @@ class MobiBook(object):
         return self.data_file[off:endoff]
 
     def __getattr__(self, name):
-        if name in EXTH_RMAP_STRINGS:
-            return self.meta_array.get(EXTH_RMAP_STRINGS[name], '')
-        if name in EXTH_RMAP_VALUES:
-            return self.returnEXTHValue(EXTH_RMAP_VALUES[name])
-        logger.debug('No attribute named: %s', name)
-        raise AttributeError
+        if name not in EXTH_RMAP_STRINGS:
+            logger.debug('No attribute named: %s', name)
+            raise AttributeError
+        tag = EXTH_RMAP_STRINGS[name]
+        v = self.meta_array.get(tag, '')
+        if tag in EXTH_MAP_CONVERSIONS and v:
+            v, = struct.unpack(EXTH_MAP_CONVERSIONS[tag], v)
+            v = str(v)
+        return v
 
     @property
     def title(self):
@@ -203,13 +215,6 @@ def main():
     print '%s: %s' % ('File'.rjust(15), sys.argv[1])
     print '%s: %s' % ('Title'.rjust(15), book.title)
     for name in EXTH_RMAP_STRINGS:
-        try:
-            v = getattr(book, name)
-        except AttributeError, e:
-            v = 'ERROR: %s' % e
-        if v:
-            print '%s: %s' % (name.rjust(15), v)
-    for name in EXTH_RMAP_VALUES:
         try:
             v = getattr(book, name)
         except AttributeError, e:
