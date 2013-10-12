@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # Kindle Mobibook metadata extraction class.
 #
-# Modified from mobidedrm v0.30.
+# Modified from mobidedrm v0.41.
 #
 import logging
 import struct
@@ -37,7 +37,7 @@ EXTH_MAP_STRINGS = {
         116 : 'StartOffset',
         118 : 'Price',
         119 : 'Currency',
-        201 : "CoverOffset",
+        201 : 'CoverOffset',
         406 : 'IsLibraryRental',
         503 : 'UpdatedTitle',
 }
@@ -52,6 +52,11 @@ EXTH_MAP_CONVERSIONS = {
         406 : '>Q',
 }
 
+CODEPAGE_MAP = {
+        1252 : 'windows-1252',
+        65001 : 'utf-8',
+}
+DEFAULT_ENCODING = 'windows-1252'
 
 logger = logging.getLogger().getChild('mobibook')
 
@@ -68,7 +73,7 @@ class MobiBook(object):
         self.data_file = infile.read()
         self.header = self.data_file[0:78]
         self.magic = self.header[0x3C:0x3C+8]
-        if self.magic != 'BOOKMOBI' and self.magic != 'TEXtREAd':
+        if self.magic != 'BOOKMOBI':
             raise MobiException("invalid file format")
         self.crypto_type = -1
 
@@ -84,13 +89,13 @@ class MobiBook(object):
         self.meta_array = {}
         self.mobi_length = 0
         self.mobi_version = -1
+        self.print_replica = False
 
-        if self.magic == 'TEXtREAd':
-            return
         self.parseMobiHeader()
 
     def parseMobiHeader(self):
         self.mobi_length, = struct.unpack('>L',self.record0[0x14:0x18])
+        self.mobi_codepage, = struct.unpack('>L',self.record0[0x1c:0x20])
         self.mobi_version, = struct.unpack('>L',self.record0[0x68:0x6C])
         self.exth_off = self.mobi_length + 16  # EXTH block offset, if any.
         self.firstimg, = struct.unpack_from('>L',self.record0, 0x6C)
@@ -114,8 +119,8 @@ class MobiBook(object):
     def processEXTH(self, callback):
         try:
             exth = self.record0[self.exth_off:]
-            if len(exth) < 4 or exth[:4] != 'EXTH':
-                logger.warn('Could not find expected EXTH record!')
+            if len(exth) < 12 or exth[:4] != 'EXTH':
+                logger.warn(u'Could not find expected EXTH record!')
                 return
 
             nitems, = struct.unpack('>I', exth[8:12])
@@ -126,7 +131,7 @@ class MobiBook(object):
                 callback(exth_type, pos, content)
                 pos += size
         except:
-            logger.error('Failed to parse EXTH record!')
+            logger.error(u'Failed to parse EXTH record!')
             return False
         return True
 
@@ -154,14 +159,15 @@ class MobiBook(object):
 
     def __getattr__(self, name):
         if name not in EXTH_RMAP_STRINGS:
-            logger.debug('No attribute named: %s', name)
+            logger.debug(u'No attribute named: %s', name)
             raise AttributeError
         tag = EXTH_RMAP_STRINGS[name]
         v = self.meta_array.get(tag, '')
         if tag in EXTH_MAP_CONVERSIONS and v:
             v, = struct.unpack(EXTH_MAP_CONVERSIONS[tag], v)
             v = str(v)
-        return v
+        encoding = CODEPAGE_MAP.get(self.mobi_codepage, DEFAULT_ENCODING)
+        return unicode(v, encoding).encode('utf-8')
 
     @property
     def title(self):
@@ -172,31 +178,9 @@ class MobiBook(object):
         title = title.strip()
         if not title:
             title = self.header[:32].strip()
-            title = title.split("\0")[0]
-        return title
-
-    def returnEXTHValue(self, exth_type):
-        content = self.meta_array.get(exth_type, '')
-        size = len(content)
-        if size == 0:
-            return ''
-        elif size == 4:
-            value, = struct.unpack('>I', content)
-            return str(value)
-        elif size == 9:
-            value, = struct.unpack('B',content)
-            return str(value)
-        elif size == 10:
-            value, = struct.unpack('>H',content)
-            return str(value)
-        elif size == 12:
-            value, = struct.unpack('>L',content)
-            return str(value)
-        else:
-            msg = 'EXTH value %s has unknown length %s: %s' % (
-                    exth_type, size, content)
-            logger.debug(msg)
-            raise AttributeError(msg)
+            title = title.split('\0')[0]
+        encoding = CODEPAGE_MAP.get(self.mobi_codepage, DEFAULT_ENCODING)
+        return unicode(title, encoding).encode('utf-8')
 
 
 def main():
