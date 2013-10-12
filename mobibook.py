@@ -167,20 +167,20 @@ class MobiBook(object):
             v, = struct.unpack(EXTH_MAP_CONVERSIONS[tag], v)
             v = str(v)
         encoding = CODEPAGE_MAP.get(self.mobi_codepage, DEFAULT_ENCODING)
-        return unicode(v, encoding).encode('utf-8')
+        return unicode(v, encoding)
 
     @property
     def title(self):
         title = self.updatedtitle
+        encoding = CODEPAGE_MAP.get(self.mobi_codepage, DEFAULT_ENCODING)
         if not title:
             toff, tlen = struct.unpack('>II', self.record0[0x54:0x5c])
-            title = self.record0[toff:toff+tlen]
+            title = unicode(self.record0[toff:toff+tlen], encoding)
         title = title.strip()
         if not title:
             title = self.header[:32].strip()
-            title = title.split('\0')[0]
-        encoding = CODEPAGE_MAP.get(self.mobi_codepage, DEFAULT_ENCODING)
-        return unicode(title, encoding).encode('utf-8')
+            title = unicode(title.split('\0')[0], encoding)
+        return title
 
 
 def main():
