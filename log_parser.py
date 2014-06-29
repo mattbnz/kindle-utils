@@ -469,10 +469,10 @@ class KindleLog(object):
                 self._StateTransition(last_ts, 'NO_DATA')
                 self._StateTransition(self._ts, 'NO_DATA')
                 return
-            if jump < 0:
-                self._fatal('Time went backwards. Last file ended @ %s. '
-                            'Bailing out! Please fix manually.',
-                            FormatTime(last_ts))
+            #if jump < 0:
+            #    self._fatal('Time went backwards. Last file ended @ %s. '
+            #                'Bailing out! Please fix manually.',
+            #                FormatTime(last_ts))
 
         # Check for other time changing.
         if jump < 0 and abs(jump) > self.MAX_BACKWARDS_JUMP:
