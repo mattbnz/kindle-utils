@@ -440,19 +440,6 @@ class KindleLog(object):
             last_ts = self._state.base_badtime + diff
         jump = self._ts - last_ts
 
-        if not self._start:
-            if jump > 0 and jump > self.MAX_FILE_JUMP:
-                # Giant jump between files. Assume missing data.
-                self._warn('Missing data from %s till now. Resetting state.',
-                           FormatTime(last_ts))
-                self._StateTransition(last_ts, 'NO_DATA')
-                self._StateTransition(self._ts, 'NO_DATA')
-                return
-            if jump < 0:
-                self._fatal('Time went backwards. Last file ended @ %s. '
-                            'Bailing out! Please fix manually.',
-                            FormatTime(last_ts))
-
         # Check for timezone change jumps.
         if (self._state.next_tz_jump and
                 MatchWithFuzzByHour(self._state.next_tz_jump,
@@ -473,6 +460,19 @@ class KindleLog(object):
                             FormatTime(old), self._state.old_tz,
                             self._state.old_tz_jump)
                 return
+
+        if not self._start:
+            if jump > 0 and jump > self.MAX_FILE_JUMP:
+                # Giant jump between files. Assume missing data.
+                self._warn('Missing data from %s till now. Resetting state.',
+                           FormatTime(last_ts))
+                self._StateTransition(last_ts, 'NO_DATA')
+                self._StateTransition(self._ts, 'NO_DATA')
+                return
+            if jump < 0:
+                self._fatal('Time went backwards. Last file ended @ %s. '
+                            'Bailing out! Please fix manually.',
+                            FormatTime(last_ts))
 
         # Check for other time changing.
         if jump < 0 and abs(jump) > self.MAX_BACKWARDS_JUMP:
